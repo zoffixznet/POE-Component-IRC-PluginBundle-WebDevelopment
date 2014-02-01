@@ -1,5 +1,8 @@
 Revision history for POE-Component-IRC-PluginBundle-WebDevelopment
 
+2.001002 2014-02-01
+    - Added Color Namer and Google PageRank plugins
+
 2.001001 2014-01-27
     - Upped the version to fix some plugins' failure to index due to
       higher version number
