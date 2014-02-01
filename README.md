@@ -9,9 +9,11 @@ This distribution provides the following
 
 - [POE::Component::IRC::Plugin::AntiSpamMailTo](https://metacpan.org/pod/POE::Component::IRC::Plugin::AntiSpamMailTo) generate `mailto:` links that avoid dumb spam bots
 - [POE::Component::IRC::Plugin::BrowserSupport](https://metacpan.org/pod/POE::Component::IRC::Plugin::BrowserSupport) lookup browser support for CSS/HTML/JS
+- [POE::Component::IRC::Plugin::ColorNamer](https://metacpan.org/pod/POE::Component::IRC::Plugin::ColorNamer) tells the name of the color by its hex code
 - [POE::Component::IRC::Plugin::CSS::Minifier](https://metacpan.org/pod/POE::Component::IRC::Plugin::CSS::Minifier) "minify" CSS code
 - [POE::Component::IRC::Plugin::CSS::PropertyInfo](https://metacpan.org/pod/POE::Component::IRC::Plugin::CSS::PropertyInfo) lookup CSS property information
 - [POE::Component::IRC::Plugin::CSS::SelectorTools](https://metacpan.org/pod/POE::Component::IRC::Plugin::CSS::SelectorTools) couple of CSS selector tools
+- [POE::Component::IRC::Plugin::Google::PageRank](https://metacpan.org/pod/POE::Component::IRC::Plugin::Google::PageRank) non-blocking access to Google's PageRank via IRC
 - [POE::Component::IRC::Plugin::HTML::AttributeInfo](https://metacpan.org/pod/POE::Component::IRC::Plugin::HTML::AttributeInfo) HTML attribute info lookup
 - [POE::Component::IRC::Plugin::HTML::ElementInfo](https://metacpan.org/pod/POE::Component::IRC::Plugin::HTML::ElementInfo) lookup HTML element information
 - [POE::Component::IRC::Plugin::JavaScript::Minifier](https://metacpan.org/pod/POE::Component::IRC::Plugin::JavaScript::Minifier) PoCo::IRC plugin to minify JavaScript code
