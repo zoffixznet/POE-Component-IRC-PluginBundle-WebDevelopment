@@ -3,6 +3,8 @@
 use strict;
 use warnings;
 
+# VERSION
+
 use lib qw(../lib  lib);
 
 use POE qw(Component::IRC  Component::IRC::Plugin::Google::PageRank);
@@ -26,7 +28,7 @@ $poe_kernel->run;
 
 sub _start {
     $irc->yield( register => 'all' );
-    
+
     $irc->plugin_add(
         'GoogleRank' => POE::Component::IRC::Plugin::Google::PageRank->new
     );

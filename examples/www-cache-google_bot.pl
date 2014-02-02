@@ -1,18 +1,20 @@
-#!/usr/bin/env perl
+#!/usr/bin/evn perl
 
 use strict;
 use warnings;
 
 # VERSION
 
-use lib qw(lib ../lib);
-use POE qw(Component::IRC  Component::IRC::Plugin::ColorNamer);
+use lib qw(../lib lib);
+use POE qw(Component::IRC  Component::IRC::Plugin::WWW::Cache::Google);
 
 my $irc = POE::Component::IRC->spawn(
-    nick        => 'ColorNamerBot',
+    nick        => 'CacheBot',
     server      => 'irc.freenode.net',
     port        => 6667,
-    ircname     => 'ColorNamerBot',
+    ircname     => 'Google Cache Bot',
+    plugin_debug => 1,
+    debug       => 1,
 );
 
 POE::Session->create(
@@ -27,13 +29,13 @@ sub _start {
     $irc->yield( register => 'all' );
 
     $irc->plugin_add(
-        'ColorNamerBot' =>
-            POE::Component::IRC::Plugin::ColorNamer->new
+        'cache_bot' =>
+            POE::Component::IRC::Plugin::WWW::Cache::Google->new
     );
 
     $irc->yield( connect => {} );
 }
 
 sub irc_001 {
-    $irc->yield( join => '#zofbot' );
+    $_[KERNEL]->post( $_[SENDER] => join => '#zofbot' );
 }

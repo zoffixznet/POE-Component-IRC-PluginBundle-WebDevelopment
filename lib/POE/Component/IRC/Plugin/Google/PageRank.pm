@@ -212,6 +212,8 @@ __END__
 
 =encoding utf8
 
+=for stopwords bot  pagerank privmsg requestor usermask
+
 =head1 NAME
 
 POE::Component::IRC::Plugin::Google::PageRank - non-blocking access
@@ -308,16 +310,16 @@ the plugin should auto respond to pagerank requests. When the C<auto>
 argument is set to a true value plugin will respond to the person requesting
 pagerank with the results automatically. When the C<auto> argument
 is set to a false value plugin will not respond and you will have to
-listen to the events emited by the plugin to retrieve the results (see
-EMITED EVENTS section and C<response_event> argument for details).
+listen to the events emitted by the plugin to retrieve the results (see
+EMITTED EVENTS section and C<response_event> argument for details).
 B<Defaults to:> C<1>.
 
 =head3 response_event
 
-    ->new( response_event => 'event_name_to_recieve_results' );
+    ->new( response_event => 'event_name_to_receive_results' );
 
 B<Optional>. Takes a scalar string specifying the name of the event
-to emit when the results of pagerank are ready. See EMITED EVENTS
+to emit when the results of pagerank are ready. See EMITTED EVENTS
 section for more information. B<Defaults to:> C<irc_google_pagerank>
 
 =head3 banned
@@ -393,7 +395,7 @@ is set to a true value some debugging information will be printed out.
 When C<debug> argument is set to a false value no debug info will be
 printed. B<Defaults to:> C<0>.
 
-=head1 EMITED EVENTS
+=head1 EMITTED EVENTS
 
 =head2 response_event
 
@@ -408,7 +410,7 @@ printed. B<Defaults to:> C<0>.
 
 The event handler set up to handle the event, name of which you've
 specified in the C<response_event> argument to the constructor
-(it defaults to C<irc_google_pagerank>) will recieve input
+(it defaults to C<irc_google_pagerank>) will receive input
 every time pagerank request is completed. The input will come in the form
 of a hashref in C<ARG0>. The keys/values of that hashref are as follows:
 
@@ -458,7 +460,7 @@ requested.
 The C<result> key will contain the pagerank of the specified page, in other
 words what you'd see the plugin say when C<auto> (see constructor arguments)
 is turned on (that's the default). Note: the successful results will
-begin with C<Rank is> and if an error occured during the request, or
+begin with C<Rank is> and if an error occurred during the request, or
 no result was returned the C<result>'s value will begin with C<Error:>.
 
 =head1 REPOSITORY

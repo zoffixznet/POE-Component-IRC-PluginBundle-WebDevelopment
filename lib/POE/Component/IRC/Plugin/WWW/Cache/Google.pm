@@ -1,69 +1,115 @@
-package POE::Component::IRC::Plugin::ColorNamer;
+package POE::Component::IRC::Plugin::WWW::Cache::Google;
 
 use warnings;
 use strict;
 
 # VERSION
 
-use App::ColorNamer;
-use base 'POE::Component::IRC::Plugin::BaseWrap';
+use base 'POE::Component::IRC::Plugin::BasePoCoWrap';
+use POE::Component::WWW::Cache::Google;
 
 sub _make_default_args {
     return (
-        trigger          => qr/^color\s*namer\s+(?=\S+$)/i,
-        response_event   => 'irc_colornamer',
+        response_event   => 'irc_google_cache',
+        trigger          => qr/^cache\s+(?=\S)/i,
+        line_length      => 350,
+    );
+}
+
+sub _make_poco {
+    return POE::Component::WWW::Cache::Google->spawn(
+        debug => shift->{debug},
     );
 }
 
 sub _make_response_message {
-    my ( $self, $in_ref ) = @_;
+    my $self   = shift;
+    my $in_ref = shift;
 
-    my $is_sane_only = $in_ref->{what} =~ s/^://;
-
-    my $app  = App::ColorNamer->new;
-
-    $app->sane_colors( $self->{sane_colors} )
-        if $self->{sane_colors};
-
-    my $name = $app->get_name( $in_ref->{what}, $is_sane_only );
+    delete $in_ref->{content};
 
     my $out;
-    if ( $name ) {
-        $out = "$name->{name} (#$name->{hex}"
-            . ( $name->{exact} ? ', exact match)' : ')' );
+    if ( defined $in_ref->{error} ) {
+        if ( $in_ref->{error} eq q|Doesn't look like cache exists| ) {
+            $out = "No google cache found for $in_ref->{uri}";
+        }
+        else {
+            $out = "Error trying to fetch google cache: $in_ref->{error}";
+        }
     }
     else {
-        $out = 'Error: ' . $app->error;
+        $out = $in_ref->{cache};
     }
-
-    return $out;
+    $out = substr $out, 0, $self->{line_length};
+    my ($nick) = split /!/, $in_ref->{_who};
+    if ( $in_ref->{_type} eq 'public' ) {
+        $in_ref->{out} = "$nick, $out";
+    }
+    else {
+        $in_ref->{out} = $out;
+    }
+    return [ $in_ref->{out} ];
 }
 
-sub _message_into_response_event { 'result' }
+sub _make_response_event {
+    my $self = shift;
+    my $in_ref = shift;
+
+    return {
+        ( map { $_ => $in_ref->{$_} }
+            qw/out cache/,
+        ),
+        (
+            exists $in_ref->{error} ? ( error => $in_ref->{error} ) : (),
+        ),
+        map { $_ => $in_ref->{"_$_"} }
+            qw/ who channel  message  type  what /,
+    }
+}
+
+sub _make_poco_call {
+    my $self = shift;
+    my $data_ref = shift;
+    my $uri = $data_ref->{what};
+    unless ( $uri =~ m{^(?:ht|f)tps?:://} ) {
+        $uri = "http://$uri";
+    }
+    $self->{poco}->cache( {
+            event       => '_poco_done',
+            uri         => $uri,
+            fetch       => 1,
+            max_size    => 100,
+            map +( "_$_" => $data_ref->{$_} ),
+                keys %$data_ref,
+        }
+    );
+}
+
 
 1;
 __END__
 
 =encoding utf8
 
-=for stopwords PoCo bot privmsg regexen requestor usermask usermasks
+=for stopwords bot privmsg regexen usermask usermasks
 
 =head1 NAME
 
-POE::Component::IRC::Plugin::ColorNamer - PoCo IRC plugin that tells the name of the color by its hex code
+POE::Component::IRC::Plugin::WWW::Cache::Google - give URIs to Google's cache pages checking if they exist
 
 =head1 SYNOPSIS
 
     use strict;
     use warnings;
 
-    use POE qw(Component::IRC  Component::IRC::Plugin::ColorNamer);
+    use POE qw(Component::IRC  Component::IRC::Plugin::WWW::Cache::Google);
 
     my $irc = POE::Component::IRC->spawn(
-        nick        => 'ColorNamerBot',
+        nick        => 'CacheBot',
         server      => 'irc.freenode.net',
         port        => 6667,
-        ircname     => 'ColorNamerBot',
+        ircname     => 'Google Cache Bot',
+        plugin_debug => 1,
     );
 
     POE::Session->create(
@@ -78,48 +124,32 @@ POE::Component::IRC::Plugin::ColorNamer - PoCo IRC plugin that tells the name of
         $irc->yield( register => 'all' );
 
         $irc->plugin_add(
-            'ColorNamer' =>
-                POE::Component::IRC::Plugin::ColorNamer->new
+            'google_cache' =>
+                POE::Component::IRC::Plugin::WWW::Cache::Google->new
         );
 
         $irc->yield( connect => {} );
     }
 
     sub irc_001 {
-        $irc->yield( join => '#zofbot' );
+        $_[KERNEL]->post( $_[SENDER] => join => '#zofbot' );
     }
 
+    __END__
 
-    <Zoffix> ColorNamerBot, colornamer :89043d
-    <ColorNamerBot> Brick Red (#c62d42)
-    <Zoffix> ColorNamerBot, colornamer 89043d
-    <ColorNamerBot> Siren (#7a013a)
-    <Zoffix> ColorNamerBot, colornamer fff
-    <ColorNamerBot> White (#ffffff, exact match)
+    <Zoffix> CacheBot, cache zoffix.com
+    <CacheBot> Zoffix, http://www.google.com/search?q=cache:zoffix.com
+    <Zoffix> CacheBot, cache non.existsant.com
+    <CacheBot> Zoffix, No google cache found for http://non.existsant.com
 
 =head1 DESCRIPTION
 
-This module is a L<POE::Component::IRC> plugin that uses
-L<POE::Component::IRC::Plugin> for its base. It provides means to
-get a name of a color, given its hex code. This functionality is
-provided by L<App::ColorNamer> module.
-The plugin accepts input from public channel events, C</notice> messages
-as well as C</msg> (private messages).
-
-=head1 PLUGIN FUNCTION USAGE
-
-    <Zoffix> ColorNamerBot, colornamer :89043d
-    <ColorNamerBot> Brick Red (#c62d42)
-    <Zoffix> ColorNamerBot, colornamer 89043d
-    <ColorNamerBot> Siren (#7a013a)
-    <Zoffix> ColorNamerBot, colornamer fff
-    <ColorNamerBot> White (#ffffff, exact match)
-
-The plugin expects either a 3 or 6-digit hexadecimal color code as
-input, optionally prefixed by a hash symbol. This input can be
-prefixed by a colon character(:) to make the plugin use "sane colors"
-only. See L<App::ColorNamer>'s C<sane_colors()> method's description
-for more info.
+This module is a L<POE::Component::IRC> plugin which uses
+L<POE::Component::IRC::Plugin> for its base. It provides interface to
+see if some URI is present in Google's cache; if it is, plugin will give
+the URI pointing to that page.
+It accepts input from public channel events, C</notice> messages as well
+as C</msg> (private messages); although that can be configured at will.
 
 =head1 CONSTRUCTOR
 
@@ -127,29 +157,24 @@ for more info.
 
     # plain and simple
     $irc->plugin_add(
-        'ColorNamer' => POE::Component::IRC::Plugin::ColorNamer->new
+        'google_cache' => POE::Component::IRC::Plugin::WWW::Cache::Google->new
     );
 
     # juicy flavor
     $irc->plugin_add(
-        'ColorNamer' =>
-            POE::Component::IRC::Plugin::ColorNamer->new(
+        'google_cache' =>
+            POE::Component::IRC::Plugin::WWW::Cache::Google->new(
+                line_length      => 350,
                 auto             => 1,
-                sane_colors      => [ qw/FFFAAA  AAAFFF/ ],
-                response_event   => 'irc_colornamer',
+                response_event   => 'irc_google_cache',
                 banned           => [ qr/aol\.com$/i ],
-                root             => [ qr/mah.net$/i ],
                 addressed        => 1,
-                trigger          => qr/^color\s*namer\s+(?=\S+$)/i,
+                root             => [ qr/mah.net$/i ],
+                trigger          => qr/^cache\s+(?=\S)/i,
                 triggers         => {
-                    public  => qr/^color\s*namer\s+(?=\S+$)/i,
-                    notice  => qr/^color\s*namer\s+(?=\S+$)/i,
-                    privmsg => qr/^color\s*namer\s+(?=\S+$)/i,
-                },
-                response_types   => {
-                    public      => 'public',
-                    privmsg     => 'privmsg',
-                    notice      => 'notice',
+                    public  => qr/^EXAMPLE\s+(?=\S)/i,
+                    notice  => qr/^EXAMPLE\s+(?=\S)/i,
+                    privmsg => qr/^EXAMPLE\s+(?=\S)/i,
                 },
                 listen_for_input => [ qw(public notice privmsg) ],
                 eat              => 1,
@@ -158,24 +183,19 @@ for more info.
     );
 
 The C<new()> method constructs and returns a new
-C<POE::Component::IRC::Plugin::ColorNamer> object suitable to be
+C<POE::Component::IRC::Plugin::WWW::Cache::Google> object suitable to be
 fed to L<POE::Component::IRC>'s C<plugin_add> method. The constructor
-takes a few arguments, but I<all of them are optional>. B<Note:>
-you can change the values of the arguments dynamically by accessing
-them as hashref keys in your plugin's object; e.g. to ban some
-user during runtime simply do
-C<< push @{ $your_plugin_object->{banned} }, qr/user!mask/ >>
-The possible arguments/values are as follows:
+takes a few arguments, but I<all of them are optional>. The possible
+arguments/values are as follows:
 
-=head3 C<sane_colors>
+=head3 C<line_length>
 
-    sane_colors => [ qw/FFFAAA  AAAFFF/ ],
+    ->new( line_length => 350, );
 
-B<Optional>. Takes an arrayref as a value. If specified, this
-arrayref will be given to C<sane_colors()> L<App::ColorNamer>'s method.
-See L<App::ColorNamer>'s C<sane_colors()> method's description
-for more info.
-B<By default> is not specified.
+To prevent really "smart" people from giving the plugin utterly long URIs
+and thus spamming the channel you can set the C<line_length> argument
+which will cut off the output if it exceeds C<line_length> characters
+(this does not include the nick of the person). B<Defaults to:> C<350>
 
 =head3 C<auto>
 
@@ -196,7 +216,7 @@ B<Defaults to:> C<1>.
 
 B<Optional>. Takes a scalar string specifying the name of the event
 to emit when the results of the request are ready. See EMITTED EVENTS
-section for more information. B<Defaults to:> C<irc_colornamer>
+section for more information. B<Defaults to:> C<irc_google_cache>
 
 =head3 C<banned>
 
@@ -214,28 +234,28 @@ request. B<Defaults to:> C<[]> (no bans are set).
 B<Optional>. As opposed to C<banned> argument, the C<root> argument
 B<allows> access only to people whose usermasks match B<any> of
 the regexen you specify in the arrayref the argument takes as a value.
-B<By default:> it is not specified. B<Note:> as opposed to C<banned>,
+B<By default:> it is not specified. B<Note:> as opposed to C<banned>
 specifying an empty arrayref to C<root> argument will restrict
 access to everyone.
 
 =head3 C<trigger>
 
-    ->new( trigger => qr/^color\s*namer\s+(?=\S+$)/i);
+    ->new( trigger => qr/^cache\s+(?=\S)/i );
 
 B<Optional>. Takes a regex as an argument. Messages matching this
-regex, irrelevant of the type of the message, will be considered as
-requests. See also B<addressed> option below which is enabled by default
-as well as B<triggers> option, which is more specific. B<Note:> the
+regex, irrelevant of the type of the message, will be considered as requests. See also
+B<addressed> option below which is enabled by default as well as
+B<triggers> option which is more specific. B<Note:> the
 trigger will be B<removed> from the message, therefore make sure your
 trigger doesn't match the actual data that needs to be processed.
-B<Defaults to:> C<qr/^color\s*namer\s+(?=\S+$)/i>
+B<Defaults to:> C<qr/^cache\s+(?=\S)/i>
 
 =head3 C<triggers>
 
     ->new( triggers => {
-            public  => qr/^color\s*namer\s+(?=\S+$)/i,
-            notice  => qr/^color\s*namer\s+(?=\S+$)/i,
-            privmsg => qr/^color\s*namer\s+(?=\S+$)/i,
+            public  => qr/^EXAMPLE\s+(?=\S)/i,
+            notice  => qr/^EXAMPLE\s+(?=\S)/i,
+            privmsg => qr/^EXAMPLE\s+(?=\S)/i,
         }
     );
 
@@ -245,43 +265,14 @@ the type of messages: channel messages, notices and private messages
 respectively. The values of those keys are regexes of the same format and
 meaning as for the C<trigger> argument (see above).
 Messages matching this
-regex will be considered as requests. The difference is that only
-messages of type corresponding to the key of C<triggers> hashref
+regex will be considered as requests. The difference is that only messages of type corresponding to the key of C<triggers> hashref
 are checked for the trigger. B<Note:> the C<trigger> will be matched
-irrelevant of the setting in C<triggers>, thus you can have one global
-and specific "local" triggers. See also
+irrelevant of the setting in C<triggers>, thus you can have one global and specific "local" triggers. See also
 B<addressed> option below which is enabled by default as well as
 B<triggers> option which is more specific. B<Note:> the
 trigger will be B<removed> from the message, therefore make sure your
 trigger doesn't match the actual data that needs to be processed.
-B<Defaults to:> C<qr/^color\s*namer\s+(?=\S+$)/i> for all three triggers.
-
-=head3 C<response_types>
-
-    ->new(
-        response_types   => {
-            public      => 'public',
-            privmsg     => 'privmsg',
-            notice      => 'notice',
-        },
-    )
-
-B<Optional>. Takes a hashref with one, two or three keys as a value.
-Valid keys are C<public>, C<privmsg> and C<notice> that correspond to
-messages sent from a channel, via a private message or via a notice
-respectively. When plugin is set to auto-respond (it's the default)
-using this hashref you can control the response type based on where the
-message came from. The valid values of the keys are the same as the
-names of the keys. The B<default> is presented above - messages are
-sent the same way they came. If for example, you wish to respond to
-private messages with notices instead, simply set C<privmsg> key to
-value C<notice>:
-
-    ->new(
-        response_types   => {
-            privmsg     => 'notice',
-        },
-    )
+B<By default> not set
 
 =head3 C<addressed>
 
@@ -291,7 +282,7 @@ B<Optional>. Takes either true or false values. When set to a true value
 all the public messages must be I<addressed to the bot>. In other words,
 if your bot's nickname is C<Nick> and your trigger is
 C<qr/^trig\s+/>
-you would make the request by saying C<Nick, trig #fff>.
+you would make the request by saying C<Nick, trig EXAMPLE>.
 When addressed mode is turned on, the bot's nickname, including any
 whitespace and common punctuation character will be removed before
 matching the C<trigger> (see above). When C<addressed> argument it set
@@ -340,80 +331,90 @@ printed. B<Defaults to:> C<0>.
 
 =head2 C<response_event>
 
-    {
-        'result' => 'Cod Gray (#0b0b0b)',
-        'who' => 'Zoffix!sexy@i.love.debian.org',
-        'what' => '080808',
+    $VAR1 = {
+        'out' => 'Zoffix, http://www.google.com/search?q=cache:www.zoffix.com',
+        'what' => 'www.zoffix.com',
+        'who' => 'Zoffix!n=Zoffix@unaffiliated/zoffix',
         'type' => 'public',
         'channel' => '#zofbot',
-        'message' => 'ColorNamerBot, colornamer 080808'
-    }
+        'message' => 'CacheBot, cache www.zoffix.com',
+        'cache' => bless( do{\(my $o = 'http://www.google.com/search?q=cache:www.zoffix.com')}, 'URI::http' )
+    };
+
+    $VAR1 = {
+        'out' => 'Zoffix, No google cache found for http://non.existant.com',
+        'what' => 'non.existant.com',
+        'who' => 'Zoffix!n=Zoffix@unaffiliated/zoffix',
+        'error' => 'Doesn\'t look like cache exists',
+        'type' => 'public',
+        'channel' => '#zofbot',
+        'message' => 'CacheBot, cache non.existant.com',
+        'cache' => bless( do{\(my $o = 'http://www.google.com/search?q=cache:non.existant.com')}, 'URI::http' )
+    };
 
 The event handler set up to handle the event, name of which you've
 specified in the C<response_event> argument to the constructor
-(it defaults to C<irc_colornamer>) will receive input
+(it defaults to C<irc_google_cache>) will receive input
 every time request is completed. The input will come in C<$_[ARG0]>
 on a form of a hashref.
 The possible keys/values of that hashrefs are as follows:
 
-=head3 C<result>
+=head3 C<cache>
 
-    {
-        'result' => 'Cod Gray (#0b0b0b)',
-    ...
+    { 'cache' => bless( do{\(my $o = 'http://www.google.com/search?q=cache:non.existant.com')}, 'URI::http' ) }
 
-The C<result> key will contain the output of the plugin; this
-is the string the plugin would output to the requestor if the
-C<auto> option is turned on.
+The C<cache> key will contain an instance of L<URI> object pointing to
+the requested page in Google's cache. Note that this will be the case even
+if the plugin was sure the cache doesn't point to the valid page.
+
+=head3 C<error>
+
+    { 'error' => 'Doesn\'t look like cache exists', }
+
+In case of some network error or if the page does not seem to be in google's
+cache, the C<error> key will be present and its value will be the error
+message.
+
+=head3 C<out>
+
+    { 'out' => 'Zoffix, No google cache found for http://non.existant.com', }
+
+The C<out> key will contain a string of whatever the plugin would normally
+spit into the IRC.
 
 =head3 C<who>
 
-    {
-        'who' => 'Zoffix!Zoffix@i.love.debian.org',
-    ...
+    { 'who' => 'Zoffix!Zoffix@i.love.debian.org', }
 
 The C<who> key will contain the user mask of the user who sent the request.
 
 =head3 C<what>
 
-    {
-        'what' => '080808',
-    ...
+    { 'what' => 'non.existant.com', }
 
 The C<what> key will contain user's message after stripping the C<trigger>
 (see CONSTRUCTOR).
 
 =head3 C<message>
 
-    {
-        'message' => 'ColorNamerBot, colornamer 080808'
-    ...
+    { 'message' => 'CacheBot, cache non.existant.com' }
 
 The C<message> key will contain the actual message which the user sent; that
 is before the trigger is stripped.
 
 =head3 C<type>
 
-    {
-        'type' => 'public',
-    ...
+    { 'type' => 'public', }
 
 The C<type> key will contain the "type" of the message the user have sent.
 This will be either C<public>, C<privmsg> or C<notice>.
 
 =head3 C<channel>
 
-    {
-        'channel' => '#zofbot',
-    ...
+    { 'channel' => '#zofbot', }
 
 The C<channel> key will contain the name of the channel where the message
 originated. This will only make sense if C<type> key contains C<public>.
-
-=head1 EXAMPLE
-
-The C<examples/> directory of this distribution contains a sample
-color naming IRC bot.
 
 =head1 REPOSITORY
 
